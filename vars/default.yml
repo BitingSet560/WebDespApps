@@ -1,0 +1,17 @@
+---
+mysql_root_password: "PASSWORD"
+mysql_user: "root"
+mysql_host: "192.168.100.16"
+app_user: "angel"
+http_host: "ahernandez.com"
+http_host2: "app.ahernandez.com"
+http_conf: "ahernandez.com.conf"
+http_conf2: "ahernandez.com.conf"
+http_port: "80"
+disable_default: true
+name_project: "carrito-compras-php-main"
+db_name: "tienda"
+file_db: "tienda.sql"
+name_new_user_db: "angel"   # Nombre de usuario con el que se conectara a la base de datos
+pass_new_user_db: "angel216"     # contraseña del nuevo usuario
+

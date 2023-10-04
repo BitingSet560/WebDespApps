@@ -1,0 +1,104 @@
+---
+- hosts: server1
+  become: true
+  vars_files:
+    - vars/default.yml
+
+  tasks:
+    - name: Actualizando paquetes e instlando prerequisitos
+      apt: name={{ item }} update_cache=yes state=latest force_apt_get=yes
+      loop: [ 'aptitude' ]
+
+    #Apache Configuration
+    - name: Instalando paquetes necesarios de LAMP
+      apt: name={{ item }} update_cache=yes state=latest
+      loop: [ 'apache2', 'mysql-server', 'python3-pymysql', 'php', 'php-mysql', 'libapache2-mod-php' ]
+
+    - name: Creacion del directorio raiz
+      file:
+        path: "/var/www/{{ http_host }}"
+        state: directory
+        owner: "{{ app_user }}"
+        mode: '0755'
+
+   #Configuración para la paguina wweb
+    - name: Moviendo código fuente de la aplicación web
+      copy:
+        src: "{{ name_project }}"
+        dest: "/var/www/{{ http_host }}"
+
+    - name: Definiendo el host virtual en Apache
+      template:
+        src: "files/apache.conf.j2"
+        dest: "/etc/apache2/sites-available/{{ http_conf }}"
+      notify: Reload Apache
+
+    - name: Habilitando nuestro sitio
+      shell: /usr/sbin/a2ensite {{ http_conf }}
+      notify: Reload Apache
+
+    - name: Desabilitando el sitio por defecto de Apache
+      shell: /usr/sbin/a2dissite 000-default.conf
+      when: disable_default
+      notify: Reload Apache
+
+    # Configuracion del firewall
+    - name: "UFW - Abriendo el puerto {{ http_port }}"
+      ufw:
+        rule: allow
+        port: "{{ http_port }}"
+        proto: tcp
+
+    #configuracion de la base de datos
+    - name: Crear la base de datos
+      community.mysql.mysql_db:
+        name: tienda
+        login_user: '{{ mysql_user }}'
+        login_password: '{{ mysql_root_password }}'
+        login_host: '{{ mysql_host }}'
+      register: resultado_creacion_db
+
+    - name: Agregar el archivo de datos sql
+      copy:
+        src: '{{ file_db }}'
+        dest: '/tmp/{{ file_db }}'
+
+    - name: Insertando los datos a la base de datos
+      mysql_db:
+        name: '{{ db_name }}'
+        state: import
+        target: '/tmp/{{ file_db }}'
+        login_user: '{{ mysql_user }}'
+        login_password: '{{ mysql_root_password }}'
+        login_host: '{{ mysql_host }}'
+
+    - name: Creacion de un nuevo usuario
+      mysql_user:
+        name: '{{ name_new_user_db }}'
+        password: '{{ pass_new_user_db }}'
+        priv: '*.*:ALL,GRANT'
+        state: present
+        login_user: '{{ mysql_user }}'
+        login_password: '{{ mysql_root_password }}'
+        login_host: '{{ mysql_host }}'
+
+    - name: Eliminar cuentas anónimas
+      mysql_user:
+        name: ""
+        host: '{{ mysql_host }}'
+        state: absent
+        login_user: '{{ mysql_user }}'
+        login_password: '{{ mysql_root_password }}'
+        login_host: '{{ mysql_host }}'
+
+  #Servicios
+  handlers:
+    - name: Reload Apache
+      service:
+        name: apache2
+        state: reloaded
+
+    - name: Restart Apache
+      service:
+        name: apache2
+        state: restarted
